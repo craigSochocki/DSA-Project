@@ -1,5 +1,6 @@
 # Part 1 - Load data
-naStrings = c("NA","na","","0"," ","N/A","n/a","n.a")
+naStrings = c("NA","na",
+            "","0"," ","N/A","n/a","n.a")
 data = read.delim("~/Desktop/orange_small_train.data", na.strings=naStrings)
 numInputFeatures = ncol(data)
 numSamples = nrow(data)
@@ -23,6 +24,12 @@ data$appetency = appetency
 data$churn = churn
 data$upsell = upsell
 
+
+data$sumNA = apply(data, 1, function(row) sum(is.na(row)))
+
+
+data
+
 # Complete data set has been loaded in and data frame constructed
 
 #---------
@@ -43,6 +50,7 @@ train = train[-validIndices,]
 numTrain = nrow(train)
 numValid = nrow(valid)
 numTest = nrow(test)
+
 # -----
 
 # Part 3 - Data Cleaning
@@ -68,11 +76,12 @@ possCatFeatures = possibleFeaturesList[featureClasses == 'factor']
 ## Numeric Feature Imputation
 # Throw away outliers (more than 3sig from mu)
 
-possCatFeatures
+possCatFeatures # need to remove labels
 possNumFeatures
 
 numFeaturesMeans = sapply(train[,possNumFeatures], function(col) mean(col, na.rm = TRUE) )
 
+library(data.table)
 length(numFeaturesMeans)
 head(train[,possNumFeatures])
 train = as.data.table(train)
@@ -86,9 +95,15 @@ for (cols in possNumFeatures) {
     train[isNa, cols := mu,with=FALSE]
   }
 }
-head(train)
-train$Var6
-isNa
-train
 
-lm1 = lm(churn ~ ., data = train)
+# ---- 
+# Clean Categorical Data
+
+possCatFeatures = setdiff(possCatFeatures,responseVars)
+
+for (cat in possCatFeatures) {
+  for(level in levels(cat))
+    if (condition) {
+      
+    }
+}
