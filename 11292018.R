@@ -220,4 +220,36 @@ library(randomForest)
 bag.trainNum = randomForest(Churn~.,mtry=14,data=trainSet)
 bag.trainNum
 
+# GRADIENT BOOSTING
+
+
+install.packages("gbm")
+library(gbm)
+
+trainSet.boost = gbm(Churn~.,data=trainSet,distribution="gaussian",n.trees = 500,interaction.depth = 2,shrinkage=.01)
+summary(trainSet.boost)
+
+# n.trees = seq(from=100,to=500,by=5)
+# predMatrix = predict(trainSet.boost,test,n.trees=n.trees)
+# dim(predMatrix)
+# predMatrix
+# test.error<-with(trainSet[,],apply( (predMatrix - trainSet$Churn)^2,2,mean))
+# head(test.error)
+
+yhat.boost = predict(trainNum.boost,newdata=valid,n.trees=500)
+
+# lm3 = glm(Churn~Var113+Var73+Var65+sumNA,data=trainSet,family='binomial')
+# 
+# summary(lm3)
+# 
+# lm3.probs = predict(lm3,type="response")
+# lm3.probs
+# lm3.pred = rep("No Churn", numTrain)
+# lm3.pred[lm3.probs > 0.25] = "Churn"
+# lm3.pred
+# 
+# table(lm3.pred,Churn)
+
+
+
 
