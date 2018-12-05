@@ -1,21 +1,48 @@
+---
+title: "Untitled"
+author: "Craig Sochocki"
+date: "December 4, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+---
+title: "Untitled"
+author: "Craig Sochocki"
+date: "December 4, 2018"
+output: html_document
+---
+
 # Part 1 - Load data
+
+```{r}
 naStrings = c("NA","na",
             "","0"," ","N/A","n/a","n.a")
 data = read.delim("~/Desktop/orange_small_train.data", na.strings=naStrings)
 numInputFeatures = ncol(data)
 numSamples = nrow(data)
+```
 
 # Load labels
 
+```{r}
 churn = read.table("~/Documents/DSA 6000/DSA Project/orange_small_train_churn.labels.txt")
-
 
 responseVars = c('appetency','churn','upsell')
 featuresList = names(data)
 featureClasses = sapply(data,class)
 
-
 data$sumNA = apply(data, 1, function(row) sum(is.na(row)))
+```
 
 
 #data
@@ -26,6 +53,7 @@ data$sumNA = apply(data, 1, function(row) sum(is.na(row)))
 
 # Part 2 - Divide data set into training, test, and validation sets
 
+```{r}
 set.seed(2018)
 trainingIndices = sample.int(numSamples, size = 0.8 * numSamples, replace = FALSE)
 
@@ -50,6 +78,7 @@ numTest = nrow(test)
 
 numChurnTrain = length(churnTrain)
 numChurnTrain
+```
 
 # -----
 
@@ -57,12 +86,12 @@ numChurnTrain
 
 ## Remove columns with excess NAs - to remove noise and improve accurancy of missing data imputation later on
 
+```{r}
 featureNAs = sapply(train, function(col) sum(is.na(col)))
 featureNAprop = featureNAs / numTrain
 
 train = train[,featureNAprop < .2]
-test = test[,featureNAprop < .2]
-valid = valid[,featureNAprop < .2]
+```
 
 # We now have a complete data set that has removed any columns that have too many 
 # missing values.  We can move forward with imputing missing values based on
@@ -70,24 +99,24 @@ valid = valid[,featureNAprop < .2]
 
 # Missing Value Imputation
 
+```{r}
 possibleFeaturesList = setdiff(names(train),responseVars)
 featureClasses = sapply(train,class)
 possNumFeatures = possibleFeaturesList[featureClasses != 'factor']
 possCatFeatures = possibleFeaturesList[featureClasses == 'factor']
+```
 
 ## Numeric Feature Imputation
 # Throw away outliers (more than 3sig from mu)
 
+```{r}
 possCatFeatures # need to remove labels
 possNumFeatures
 
 numFeaturesMeans = sapply(train[,possNumFeatures], function(col) mean(col, na.rm = TRUE) )
 numFeaturesMeans
-
 library(data.table)
 length(numFeaturesMeans)
-length(possNumFeatures)
-
 head(train[,possNumFeatures])
 train = as.data.table(train)
 
@@ -103,13 +132,16 @@ for (cols in possNumFeatures) {
 sum(is.na(train$Var6))
 train = as.data.frame(train)
 sum(is.na(train[,possNumFeatures]))
+```
 
 # ---- 
 # Clean Categorical Data
 
+```{r}
 possCatFeatures
+train = as.data.frame(train)
 
-head(train[,possCatFeatures])
+train[,possCatFeatures]
 
 levelsOfCats = sapply(train[,possCatFeatures], function(col) length(levels(col)))
 levelsOfCats
@@ -128,15 +160,18 @@ possCatFeatures
 str(train[,possCatFeatures])
 
 train = train[,c(possNumFeatures, possCatFeatures)]
-head(train)
+train
 sum(is.na(train[,possCatFeatures]))
+```
 
 # ---- BUILDING NUMERIC MODELS
 
+```{r}
 trainNum = train[,possNumFeatures]
+```
 
 # Find which features only have 1 category
-
+```{r}
 trainNum$churn = as.factor(churnTrain)
 
 head(trainNum)
@@ -146,15 +181,19 @@ summary(lm1.fits)
 
 corrs = cor(trainNum[,-15])
 
+install.packages("corrplot")
 library(corrplot)
 corrplot(corrs, type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45)
 
 summary(trainNum$Var73)
 hist(trainNum$Var73)
+```
+
 # As Var73 goes up, amount of missing data in original data set goes 
 # down. Perhaps Var73 has something to do with days since last interaction?
 
+```{r}
 lm1.probs = predict(lm1.fits, type="response")
 lm1.pred = rep("Not Churn", numTrain)
 
@@ -164,9 +203,11 @@ lm1.pred
 table(lm1.pred, trainNum$churn)
 
 plot(trainNum$churn)
+```
 
  # ---- LOG MODEL 2
 
+```{r}
 lm2.fits = glm(trainNum$churn ~ Var65 + Var73 + Var81 + Var113 + sumNA, family = "binomial")
 summary(lm2.fits)
 
@@ -183,11 +224,14 @@ lm2TPR
 
 lm2TNR = 27774/27790
 lm2TNR
+```
 
+# MODEL 2
 # REGRESSION DECISION TREE
+```{r}
 library(tree)
 
-tree2 = tree(churn~.,data=trainNum)
+tree2 = tree(Churn~.,data=trainNum)
 trainNum = as.data.frame(trainNum)
 
 tree.trainNum = tree(trainNum$churn~.,trainNum)
@@ -205,17 +249,20 @@ text(tree.trainNum,pretty=0)
 
 tree.trainNum
 
+```
 
 # RANDOM FOREST
 
+```{r}
 library(randomForest)
 
-bag.trainNum = randomForest(churn~.,mtry=14,data=trainSet)
+bag.trainNum = randomForest(Churn~.,mtry=14,data=trainSet)
 bag.trainNum
+```
 
 # GRADIENT BOOSTING
 
-
+```{r}
 install.packages("gbm")
 library(gbm)
 
@@ -223,4 +270,4 @@ trainSet.boost = gbm(Churn~.,data=trainSet,distribution="gaussian",n.trees = 500
 summary(trainSet.boost)
 
 yhat.boost = predict(trainSet.boost,newdata=train,n.trees=500)
-
+```
