@@ -210,17 +210,22 @@ tree.trainNum
 
 library(randomForest)
 
-bag.trainNum = randomForest(churn~.,mtry=14,data=trainSet)
+bag.trainNum = randomForest(Churn~.,mtry=14,data=trainSet)
 bag.trainNum
 
 # GRADIENT BOOSTING
 
-
-install.packages("gbm")
 library(gbm)
 
+trainSet$Churn = as.factor(trainSet$Churn)
 trainSet.boost = gbm(Churn~.,data=trainSet,distribution="gaussian",n.trees = 500,interaction.depth = 2)
 summary(trainSet.boost)
 
 yhat.boost = predict(trainSet.boost,newdata=train,n.trees=500)
+yhat.boost = yhat.boost - 1
+yhat.boost
+boost.pred = rep("-1",numTrain)
+boost.pred[boost.pred > 0.05] = "1"
+class(boost.pred)
 
+table(boost.pred,trainSet$Churn)

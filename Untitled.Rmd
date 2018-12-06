@@ -173,7 +173,6 @@ trainNum = train[,possNumFeatures]
 # Find which features only have 1 category
 ```{r}
 trainNum$churn = as.factor(churnTrain)
-
 head(trainNum)
 
 lm1.fits = glm(churn ~ ., data=trainNum, family = 'binomial')
