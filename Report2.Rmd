@@ -1,0 +1,273 @@
+---
+title: "DSA 6000 Final Project"
+author: "Craig Sochocki, Matt Drouillard, Stephanie Rogers, Jing Tang, Mahbubul Khan"
+date: "12/5/2018"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+
+##Step 1: Load the Libraries
+As a team, our first step was to load all the libraries. 
+```{r Load Library, include=TRUE}
+pkgs <- c("keras", "lime", "tidyquant", "rsample", "recipes", "yardstick", "corrr","tidyverse","corrplot","data.table","tree","randomForest","gbm","caret","cattonum","DataExplorer","xgboost")
+library(DataExplorer)
+library(data.table)
+library(corrplot)
+library(tree)
+library(randomForest)
+library(gbm)
+library(cattonum)
+library(VIM)
+shhh = suppressPackageStartupMessages(library(tidyverse))
+```
+
+##Step 2: Load All the Data Files
+Action Item: Call the NA strings, Map/Call the data File, Acquire the number of samples and Input Features.
+
+```{r Load Features, include=TRUE}
+naStrings = c("NA","na","","0"," ","N/A","n/a","n.a")          
+raw = read.delim("~/Desktop/orange_small_train.data", na.strings=naStrings)
+numInputFeatures = ncol(raw)
+numSamples = nrow(raw)
+```
+
+
+##Step 3: Load the Labels & Churn Data File
+Action Item: Load the labels - Define and Built the Arrary of Response Variables, Define the Features List, Define the Feature Classes. Found the number of NA's in each row and compute the sum. 
+
+```{r Load Labels, include=TRUE}
+churn = read.table("~/Documents/DSA 6000/DSA Project/orange_small_train_churn.labels.txt")
+responseVars = c('churn')
+featuresList = names(raw)
+featureClasses = sapply(raw,class)
+raw$sumNA = apply(raw, 1, function(row) sum(is.na(row)))
+
+```
+
+##Step 5: Initiation of Data Cleaning
+Action Item:
+Remove Columns with Excess NA's from the Features List - this will help remove unnecessary noise in the data and improve accuracy of missing data imputation going forward. Identify the Proportion by dividing the NAs list by number of NAs in the Training Set and Defined the new 'NA Cleaned' Features List as FeaturesNAprop. The FeaturesNAprop is to help refine the data to drop any data field(s) with less than .2 or 20% of NA's across Train, Test and Valid Set. 
+
+```{r Remove Gross NAs, include=TRUE}
+featureNAs = sapply(raw, function(col) sum(is.na(col)))
+featureNAprop = featureNAs / numSamples
+data = raw[,featureNAprop < .2]
+```
+
+##Step 6: Missing Value Imputation
+Action Item: Call the possible Features List. Additionally, Redefine List by - PossNumFeatures - all the Non-Factor Classes. PossCatFeatures - all the Factor Classes. 
+
+```{r Feature Division, include=TRUE}
+possibleFeaturesList = setdiff(names(data),responseVars)
+featureClasses = sapply(data,class)
+possNumFeatures = possibleFeaturesList[featureClasses != 'factor']
+possCatFeatures = possibleFeaturesList[featureClasses == 'factor']
+possCatFeatures
+possNumFeatures
+```
+
+Action Item: Calculated the Mean of all the numeric features and dropped any outliers (i.e., more than 3 sigma from mu). Next, confirm the length and validate the head. Using the 'For' loop to replace the NA's with the mean (mu). Finally, confirm that the sum fof all NA equal to zero. 
+
+```{r Numeric Imputation, include=TRUE} 
+numFeaturesMeans = sapply(data[,possNumFeatures], function(col) mean(col, na.rm = TRUE) )
+numFeaturesMeans
+length(numFeaturesMeans)
+length(possNumFeatures)
+head(data[,possNumFeatures])
+data = as.data.table(data)
+for (cols in possNumFeatures) {
+x = data[[cols]]
+isNa = is.na(x)
+if (sum(isNa) > 0) {
+data[, (cols) := as.numeric(x),with=FALSE]
+mu = numFeaturesMeans[cols]
+data[isNa, (cols) := mu,with=FALSE]
+}
+}
+sum(is.na(data$Var6))
+data = as.data.frame(data)
+sum(is.na(data[,possNumFeatures]))
+```
+
+##Step 7: Clean Categorical Data
+Action Item: Took the head of the possible categorical features and confirm the number of levels for all the categorical features. Next, made two arrays to separate the categories by number of levels: (1) for above 500 and (1) for below 2. Validate the structure for correct number of matrix match due to NA drop. 
+
+```{r Categorical Cleansing, include=TRUE}
+possCatFeatures
+head(data[,possCatFeatures])
+levelsOfCats = sapply(data[,possCatFeatures], function(col) length(levels(col)))
+levelsOfCats
+tooManyCats = (levelsOfCats > 500) 
+notEnoughCats = levelsOfCats < 2
+possCatFeatures = possCatFeatures[!tooManyCats]
+possCatFeatures = possCatFeatures[!notEnoughCats]
+possCatFeatures
+possCatFeatures = possCatFeatures[!is.na(possCatFeatures)]
+possCatFeatures
+str(data[,possCatFeatures])
+head(data[,possCatFeatures])
+data = as.data.table(data)
+for (cat in possCatFeatures) {
+  x = data[[cat]]
+  xIsNa = is.na(x)
+  if (sum(xIsNa) > 0){
+    data[xIsNa, cat:= "MISSING", with = FALSE]
+  }
+}
+data = as.data.frame(data)
+tail(data[,possCatFeatures])
+
+sum(is.na(data))
+data = data[,c(possNumFeatures, possCatFeatures)]
+head(data)
+sum(is.na(data))
+```
+
+```{r Categorical Encoding, incldue=TRUE}
+encode = catto_label(data,c(possCatFeatures))
+summary(encode)
+str(encode)
+head(encode)
+#create_report(encode)
+#catto_dummy.data.frame(encode)
+data = encode
+data$churn = as.factor(churn)
+
+
+```
+
+##Step 4: Divide Data Set - Training & Validation Set
+Action Item:
+Set the Seed, Identify List of Training Indices Using (Sample.int) - divided it into Train & Test Set and Churn Train Set and Churn Test Set and validate the head for Churn Train Set. Identify Validation Indices Using (Sample.int) by Removing Sample out of Training Indices only. Then divided the Validation Indices into Valid and Train Set and Churn Valid and Train Set. Validate and Confirm the Train, Valid and Test Rows and Define Number/length of Churn Train Set. 
+```{r Divide Dataset, include=TRUE}
+set.seed(2018)
+trainingIndices = sample.int(numSamples, size = 0.8 * numSamples, replace = FALSE)
+train = data[trainingIndices,]
+test = data[-trainingIndices,]
+churnTrain = churn[trainingIndices,]
+churnTest = churn[-trainingIndices,]
+head(churnTrain)
+numTrain = nrow(train)
+numTest = nrow(test)
+numChurnTrain = length(churnTrain)
+numChurnTrain
+```
+##Step 8: Model 1 - BUILDING NUMERIC MODELS
+Action Item: To keep moving forward with modeling - created TrainNum set (Numerical Features) to validate Churn as a Factor, Validate the Head to see the numerical data with Churn. Then used Logistic Regression, regression Chrun vs. all the data. Further investigated potential correlation for key variables (e.g., Var73). Built a probability/array for prediction: Churn if above .5 or else No Churn.
+
+
+```{r Subset Selection}
+
+library(leaps)
+
+train$churn = churnTrain
+test$churn = churnTest
+regfit.bwd = regsubsets(train$churn~.,data=train,nvmax = 36, method="backward")
+summary(regfit.bwd)
+
+regfit.best = regsubsets(train$churn~., data=train,nvmax=ncol(train)-1)
+test.mat = model.matrix(test$churn~.,data=test,nvmax=ncol(train)-1)
+```
+
+```{r Logistic 1, include=TRUE}
+train$churn = as.factor(churnTrain)
+head(train)
+
+lm1.fits = glm(churn ~ ., data=train, family = 'binomial')
+summary(lm1.fits)
+#corrs = cor(train[,-36])
+str(train)
+
+#corrplot(corrs, type = "upper", order = "hclust", 
+#         tl.col = "black", tl.srt = 45)
+# summary(train$Var73)
+hist(train$Var73)
+lm1.probs = predict(lm1.fits, type="response")
+lm1.pred = rep("Not Churn", numTrain)
+lm1.pred[lm1.probs > 0.05] = "Churn"
+tail(lm1.pred)
+conf.lm1 = table(lm1.pred, train$churn)
+plot(train$churn)
+```
+
+##Step 9: Model 2 - LOG
+
+```{r Logistic 2, include=TRUE}
+attach(train)
+lm2.fits = glm(train$churn ~ Var65 + Var73 + Var81 + Var113 + sumNA, family = "binomial")
+summary(lm2.fits)
+lm2.probs = predict(lm2.fits,type="response")
+tail(lm2.probs)
+lm2.pred = rep("Not Churn", numTrain)
+lm2.pred[lm2.probs > 0.25] = "Churn"
+table(lm2.pred,train$churn)
+lm2TPR = 14/(2941+14)
+lm2TPR
+lm2TNR = 37015/37045
+lm2TNR
+```
+
+##Step 10: Model 3 - REGRESSION DECISION TREE 
+Action Item: TBD 
+
+```{r Decision Tree, include=TRUE}
+tree2 = tree(train$churn~.,data=train)
+train = as.data.frame(train)
+summary(tree2)
+Churn = ifelse(train$churn == '1',"Yes","No")
+testChurn = ifelse(test$churn == '1', "Yes", "No")
+trainSet = data.frame(train[,-37],Churn)
+testSet = data.frame(test[-37],testChurn)
+tree.train = tree(Churn~.,trainSet)
+summary(tree.train)
+test.pred = predict(tree.train,newdata = testSet)
+predChurn = ifelse(test.pred[,2]>.08,"Yes","No")
+tail(predChurn)
+
+table(testChurn,predChurn)
+
+(TPR = 509/(5339+509))
+#plot(tree.trainNum)
+#text(tree.trainNum,pretty=0)
+#tree.train ## DOES NOT WORK
+```
+
+##Step 11: Model 4 - RANDOM FOREST
+Action Item: TBD
+
+```{r Random Forest - Bag, include=TRUE}
+bag.trainSet = randomForest(Churn~.,mtry=14,data=trainSet)
+bag.trainSet
+
+yhat.bag = predict(bag.trainSet,newdata=testSet)
+yhat.bag
+table(yhat.bag,testChurn)
+
+(TPR = (2/719)*100)
+
+```
+
+##Step 12: Model 5 - GRADIENT BOOSTING
+Action Item: TBD
+
+```{r Boosted Forest, include=TRUE}
+trainSet.boost = gbm(Churn~.,data=trainSet,distribution="gaussian",n.trees = 500,interaction.depth = 2)
+summary(trainSet.boost)
+yhat.boost = predict(trainSet.boost,newdata=test,n.trees=500)
+
+table(yhat.boost,testChurn)
+
+##install.packages(xgboost)
+##model
+##XGBmod <- xgboost(data = train, label = churnTrain, nrounds = 10, objective = "binary:logistic)
+##feature importance
+##importance <- xgb.importance(feature_names = featuresList(train), model = XGBmod)
+##plot
+##xgb.plot.importance(importance_matrix = head(importance, 15))
+##pred & store in confusion matrix
+##XGBPredMat <- as.matrix(table())
+```

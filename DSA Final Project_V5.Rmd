@@ -23,6 +23,7 @@ library(randomForest)
 library(gbm)
 library(cattonum)
 library(VIM)
+library(ROCR)
 
 shhh = suppressPackageStartupMessages(library(tidyverse))
 
@@ -84,6 +85,7 @@ data$sumNA = apply(data, 1, function(row) sum(is.na(row)))
 ##Step 4: Divide Data Set - Training & Validation Set
 Action Item:
 Set the Seed, Identify List of Training Indices Using (Sample.int) - divided it into Train & Test Set and Churn Train Set and Churn Test Set and validate the head for Churn Train Set. Identify Validation Indices Using (Sample.int) by Removing Sample out of Training Indices only. Then divided the Validation Indices into Valid and Train Set and Churn Valid and Train Set. Validate and Confirm the Train, Valid and Test Rows and Define Number/length of Churn Train Set. 
+
 ```{r Divide Dataset, include=TRUE}
 set.seed(2018)
 trainingIndices = sample.int(numSamples, size = 0.8 * numSamples, replace = FALSE)
@@ -204,7 +206,7 @@ encode = catto_label(train,c(possCatFeatures))
 summary(encode)
 str(encode)
 head(encode)
-#create_report(encode)
+create_report(encode)
 #catto_dummy.data.frame(encode)
 
 train = encode
@@ -224,7 +226,6 @@ summary(lm1.fits)
 
 corrs = cor(train[,-36])
 str(train)
-sum(!complete.cases(train[,possCatFeatures]))
 
 corrplot(corrs, type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45)
@@ -240,6 +241,7 @@ tail(lm1.pred)
 
 conf.lm1 = table(lm1.pred, train$churn)
 
+pred = prediction(lm1.pred,train$churn)
 plot(train$churn)
 ```
 
